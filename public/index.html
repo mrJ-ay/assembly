@@ -91,8 +91,7 @@
             <button type="button" class="pill" data-filter="enacted">📜 공포됨 (고객센터 반영)</button>
             <button type="button" class="pill" data-filter="rejected">거부/폐기</button>
           </div>
-          <button type="button" id="openNewBillBtn" class="btn gold">🆕 새 제정안 발의</button>
-          <button type="button" id="openAmendBillBtn" class="btn">✏️ 기존 법안 개정안 발의</button>
+          <button type="button" id="openProposeBtn" class="btn gold">📜 새 제정 · 개정안 발의</button>
         </div>
       </div>
 
@@ -138,15 +137,15 @@
         <label>
           <span>안건 구분</span>
           <select id="billTypeSelect">
-            <option value="new">🆕 제정안 (새로운 운영정책 신설)</option>
-            <option value="amend">✏️ 개정안 (기존 현행 운영정책 · 법안 수정)</option>
+            <option value="new">🆕 제정안 (새로운 법안 · 운영정책 신설)</option>
+            <option value="amend">✏️ 개정안 (공포된 기존 법안 선택하여 수정)</option>
           </select>
         </label>
         <label id="targetPolicyWrap" hidden style="display:none;">
-          <span>개정할 대상 법안 · 운영정책 선택 (선택 시 기존 본문 자동 불러오기)</span>
+          <span>개정할 공포된 법안 선택 (선택 시 해당 법안 본문을 불러옵니다)</span>
           <select id="targetPolicySelect"></select>
         </label>
-        <label>
+        <label id="billServiceWrap">
           <span>적용 대상 서비스</span>
           <select id="billServiceSelect">
             <option value="전체 서비스">전체 서비스 (통합 운영정책)</option>
@@ -163,10 +162,10 @@
         </label>
         <label>
           <span>법안 · 운영정책 제목</span>
-          <input id="billTitleInput" type="text" maxlength="120" placeholder="예: ATELIER J · ONEID 통합 운영정책 일부개정안" required />
+          <input id="billTitleInput" type="text" maxlength="120" placeholder="예: 커뮤니티 표현의 자유 보장법 제정안" required />
         </label>
         <label>
-          <span>정책 조문 전문 (개정안일 경우 기존 조문을 직접 수정하세요)</span>
+          <span>정책 조문 전문 (개정안일 경우 선택한 법안 조문을 직접 수정하세요)</span>
           <textarea id="billContentInput" rows="10" maxlength="8000" placeholder="제1조(목적) ...&#10;제2조(적용 기준) ..." required></textarea>
         </label>
         <button type="submit" class="btn gold full">본회의 안건 상정</button>
@@ -174,6 +173,6 @@
     </div>
   </div>
 
-  <script type="module" src="/app.js?v=4"></script>
+  <script type="module" src="/app.js?v=5"></script>
 </body>
 </html>

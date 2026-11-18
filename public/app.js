@@ -33,8 +33,7 @@ const closePartyModalBtn = document.getElementById('closePartyModalBtn');
 const partyForm = document.getElementById('partyForm');
 
 const proposeModal = document.getElementById('proposeModal');
-const openNewBillBtn = document.getElementById('openNewBillBtn');
-const openAmendBillBtn = document.getElementById('openAmendBillBtn');
+const openProposeBtn = document.getElementById('openProposeBtn');
 const closeProposeModalBtn = document.getElementById('closeProposeModalBtn');
 const proposeForm = document.getElementById('proposeForm');
 
@@ -157,18 +156,27 @@ function setProposeMode(mode, targetKey = '') {
   const billTypeSelect = document.getElementById('billTypeSelect');
   const targetPolicyWrap = document.getElementById('targetPolicyWrap');
   const targetPolicySelect = document.getElementById('targetPolicySelect');
+  const billServiceWrap = document.getElementById('billServiceWrap');
   const isAmend = mode === 'amend';
 
   billTypeSelect.value = isAmend ? 'amend' : 'new';
   targetPolicyWrap.hidden = !isAmend;
   targetPolicyWrap.style.display = isAmend ? 'flex' : 'none';
+  if (billServiceWrap) {
+    billServiceWrap.hidden = isAmend;
+    billServiceWrap.style.display = isAmend ? 'none' : 'flex';
+  }
 
   if (isAmend) {
     populateTargetPolicyOptions();
     if (targetKey && Array.from(targetPolicySelect.options).some((o) => o.value === targetKey)) {
       targetPolicySelect.value = targetKey;
+      applySelectedPolicyToForm();
+    } else {
+      targetPolicySelect.value = '';
+      document.getElementById('billTitleInput').value = '';
+      document.getElementById('billContentInput').value = '';
     }
-    applySelectedPolicyToForm();
   } else {
     document.getElementById('billTitleInput').value = '';
     document.getElementById('billContentInput').value = '';
@@ -187,21 +195,27 @@ function populateTargetPolicyOptions() {
   const policies = stateData.policies || [];
   const bills = stateData.bills || [];
   const enactedBillIds = new Set(policies.map((p) => Number(p.billId)).filter(Boolean));
+  const placeholder = `<option value="">-- 개정할 공포된 법안 · 운영정책을 선택하세요 --</option>`;
   const policyOpts = policies.map(
     (p) =>
-      `<option value="policy:${p.policyId}">[현행 운영정책 · ${escapeHtml(p.serviceName)}] ${escapeHtml(p.title)} (${escapeHtml(p.billNo)})</option>`
+      `<option value="policy:${p.policyId}">[공포됨 · ${escapeHtml(p.billNo)}] ${escapeHtml(p.title)} (${escapeHtml(p.serviceName)})</option>`
   );
-  const billOpts = bills
-    .filter((b) => !enactedBillIds.has(Number(b.id)))
+  const enactedBillOpts = bills
+    .filter((b) => b.status === 'enacted' && !enactedBillIds.has(Number(b.id)))
     .map(
       (b) =>
-        `<option value="bill:${b.id}">[법안 ${escapeHtml(b.billNo)} · ${escapeHtml(b.serviceName)}] ${escapeHtml(b.title)}</option>`
+        `<option value="bill:${b.id}">[공포됨 · ${escapeHtml(b.billNo)}] ${escapeHtml(b.title)} (${escapeHtml(b.serviceName)})</option>`
     );
-  targetPolicySelect.innerHTML = [...policyOpts, ...billOpts].join('');
+  targetPolicySelect.innerHTML = [placeholder, ...policyOpts, ...enactedBillOpts].join('');
 }
 
 function applySelectedPolicyToForm() {
   const val = document.getElementById('targetPolicySelect').value || '';
+  if (!val) {
+    document.getElementById('billTitleInput').value = '';
+    document.getElementById('billContentInput').value = '';
+    return;
+  }
   const [kind, rawId] = val.split(':');
   const id = Number(rawId);
   let item = null;
@@ -584,17 +598,10 @@ billTypeSelectEl?.addEventListener('change', () => {
 
 targetPolicySelectEl?.addEventListener('change', applySelectedPolicyToForm);
 
-openNewBillBtn?.addEventListener('click', () => {
+openProposeBtn?.addEventListener('click', () => {
   if (!stateData.me) return startOneIdLogin();
   proposeForm.reset();
   setProposeMode('new');
-  proposeModal.hidden = false;
-});
-
-openAmendBillBtn?.addEventListener('click', () => {
-  if (!stateData.me) return startOneIdLogin();
-  proposeForm.reset();
-  setProposeMode('amend');
   proposeModal.hidden = false;
 });
 
@@ -606,6 +613,10 @@ proposeForm.addEventListener('submit', async (e) => {
   let targetPolicyId = null;
   let targetBillId = null;
   if (billType === 'amend') {
+    if (!targetPolicySelectEl.value) {
+      alert('개정할 공포된 법안을 먼저 선택해 주세요.');
+      return;
+    }
     const [kind, rawId] = (targetPolicySelectEl.value || '').split(':');
     if (kind === 'policy') targetPolicyId = Number(rawId);
     if (kind === 'bill') targetBillId = Number(rawId);
