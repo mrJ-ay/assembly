@@ -126,7 +126,27 @@ async function initDb() {
   }
 }
 
-initDb().catch((err) => console.error('DB init error:', err.message));
+let dbInitialized = false;
+let dbInitPromise = null;
+async function ensureDb() {
+  if (dbInitialized || !pool) return;
+  if (!dbInitPromise) {
+    dbInitPromise = initDb()
+      .then(() => {
+        dbInitialized = true;
+      })
+      .catch((err) => {
+        dbInitPromise = null;
+        console.error('DB init error:', err.message);
+      });
+  }
+  await dbInitPromise;
+}
+
+app.use('/api', async (_req, _res, next) => {
+  await ensureDb();
+  next();
+});
 
 async function verifyOneIdUser(req) {
   const auth = req.headers.authorization || '';
@@ -533,6 +553,10 @@ app.delete('/api/bills/:id', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`AGORA Virtual Parliament listening on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`AGORA Virtual Parliament listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
