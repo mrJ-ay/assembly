@@ -148,7 +148,87 @@ function renderAll() {
 
   renderHemicycle(stateData.parties || []);
   renderParties(stateData.parties || []);
+  renderActivePolicies(stateData.policies || []);
   renderBills(stateData.bills || []);
+}
+
+function openAmendModalForPolicy(policyId) {
+  if (!stateData.me) return startOneIdLogin();
+  const policies = stateData.policies || [];
+  const p = policies.find((item) => item.policyId === Number(policyId)) || policies[0];
+  if (!p) {
+    alert('개정할 현행 운영정책이 없습니다.');
+    return;
+  }
+
+  const billTypeSelect = document.getElementById('billTypeSelect');
+  const targetPolicyWrap = document.getElementById('targetPolicyWrap');
+  const targetPolicySelect = document.getElementById('targetPolicySelect');
+  const billServiceSelect = document.getElementById('billServiceSelect');
+  const billTitleInput = document.getElementById('billTitleInput');
+  const billContentInput = document.getElementById('billContentInput');
+
+  populateTargetPolicyOptions();
+  billTypeSelect.value = 'amend';
+  targetPolicyWrap.hidden = false;
+  targetPolicySelect.value = String(p.policyId);
+  billServiceSelect.value = p.serviceName || '전체 서비스';
+  billTitleInput.value = p.title.includes('개정') ? p.title : `${p.title} 일부개정안`;
+  billContentInput.value = p.content || '';
+  proposeModal.hidden = false;
+}
+
+function populateTargetPolicyOptions() {
+  const targetPolicySelect = document.getElementById('targetPolicySelect');
+  const policies = stateData.policies || [];
+  targetPolicySelect.innerHTML = policies
+    .map(
+      (p) =>
+        `<option value="${p.policyId}">[${escapeHtml(p.serviceName)}] ${escapeHtml(p.title)} (${escapeHtml(p.billNo)})</option>`
+    )
+    .join('');
+}
+
+function applySelectedPolicyToForm() {
+  const targetPolicySelect = document.getElementById('targetPolicySelect');
+  const p = (stateData.policies || []).find((item) => item.policyId === Number(targetPolicySelect.value));
+  if (!p) return;
+  document.getElementById('billServiceSelect').value = p.serviceName || '전체 서비스';
+  document.getElementById('billTitleInput').value = p.title.includes('개정') ? p.title : `${p.title} 일부개정안`;
+  document.getElementById('billContentInput').value = p.content || '';
+}
+
+function renderActivePolicies(policies) {
+  const box = document.getElementById('activePolicyList');
+  if (!box) return;
+  if (!policies.length) {
+    box.innerHTML = '<div class="empty-box">아직 공포된 현행 운영정책이 없습니다.</div>';
+    return;
+  }
+  box.innerHTML = policies
+    .map(
+      (p) => `
+      <div class="party-row" style="border-left-color:#f59e0b;align-items:flex-start;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div>
+            <span class="badge enacted">${escapeHtml(p.billNo)}</span>
+            <span class="badge" style="color:#fbbf24;">${escapeHtml(p.serviceName)}</span>
+            <strong style="margin-left:6px;font-size:15px;">${escapeHtml(p.title)}</strong>
+          </div>
+          <button type="button" class="btn small gold" data-amend-policy="${p.policyId}">✏️ 이 정책 개정안 발의</button>
+        </div>
+        <details style="width:100%;margin-top:6px;">
+          <summary style="cursor:pointer;font-size:12px;color:#93c5fd;">정책 조문 전문 펼쳐보기</summary>
+          <div class="bill-body" style="margin-top:8px;">${escapeHtml(p.content)}</div>
+        </details>
+      </div>
+    `
+    )
+    .join('');
+
+  box.querySelectorAll('[data-amend-policy]').forEach((btn) => {
+    btn.addEventListener('click', () => openAmendModalForPolicy(btn.dataset.amendPolicy));
+  });
 }
 
 function renderHemicycle(parties) {
@@ -159,8 +239,7 @@ function renderHemicycle(parties) {
     rulingPartyBadge.textContent = '정당 없음';
   }
 
-  // Generate 300 seat coordinates in semicircular rows
-  const rows = [32, 38, 44, 50, 56, 80]; // sum = 300
+  const rows = [32, 38, 44, 50, 56, 80];
   const radii = [95, 118, 141, 164, 187, 212];
   const points = [];
   for (let r = 0; r < rows.length; r++) {
@@ -252,6 +331,11 @@ function renderBills(bills) {
       const yesPct = totalV === 0 ? 50 : Math.round((b.yesVotes / totalV) * 100);
       const noPct = totalV === 0 ? 50 : 100 - yesPct;
 
+      const typeBadge =
+        b.billType === 'amend'
+          ? `<span class="badge" style="border-color:#f59e0b;color:#fbbf24;">✏️ 개정안${b.targetPolicyTitle ? ` (대상: ${escapeHtml(b.targetPolicyTitle)})` : ''}</span>`
+          : `<span class="badge" style="color:#34d399;">🆕 제정안</span>`;
+
       const statusBadge =
         b.status === 'enacted'
           ? `<span class="badge enacted">📜 공포됨 · 고객센터 반영 완료 (승인: ${escapeHtml(b.approvedBy || '의장')})</span>`
@@ -264,7 +348,7 @@ function renderBills(bills) {
           <div class="admin-btns">
             ${
               b.status !== 'enacted'
-                ? `<button type="button" class="btn small approve" data-approve-bill="${b.id}">👑 최종 승인 · 고객센터 반영</button>`
+                ? `<button type="button" class="btn small approve" data-approve-bill="${b.id}">👑 최종 승인 · 고객센터 ${b.billType === 'amend' ? '개정 반영' : '공포'}</button>`
                 : ''
             }
             ${
@@ -295,6 +379,7 @@ function renderBills(bills) {
           <div class="bill-top">
             <div class="bill-badges">
               <span class="badge">${escapeHtml(b.billNo)}</span>
+              ${typeBadge}
               <span class="badge" style="color:#fbbf24;">적용: ${escapeHtml(b.serviceName)}</span>
               <span class="badge" style="border-color:${escapeHtml(b.partyColor)}">${escapeHtml(b.partyName)} · 발의 ${escapeHtml(b.proposerName)}</span>
               ${statusBadge}
@@ -362,7 +447,7 @@ function renderBills(bills) {
 
   billList.querySelectorAll('[data-approve-bill]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      if (!confirm('이 안건을 최종 승인하여 통합 고객센터(HELPDESK) 공식 운영정책으로 즉시 공포하시겠습니까?')) return;
+      if (!confirm('이 안건을 최종 승인하여 통합 고객센터(HELPDESK) 공식 운영정책에 즉시 반영하시겠습니까?')) return;
       try {
         const res = await api(`/api/bills/${btn.dataset.approveBill}/approve`, { method: 'POST' });
         alert(res.message);
@@ -462,18 +547,43 @@ partyForm.addEventListener('submit', async (e) => {
   }
 });
 
+const billTypeSelectEl = document.getElementById('billTypeSelect');
+const targetPolicyWrapEl = document.getElementById('targetPolicyWrap');
+const targetPolicySelectEl = document.getElementById('targetPolicySelect');
+
+billTypeSelectEl?.addEventListener('change', () => {
+  const isAmend = billTypeSelectEl.value === 'amend';
+  targetPolicyWrapEl.hidden = !isAmend;
+  if (isAmend) {
+    populateTargetPolicyOptions();
+    applySelectedPolicyToForm();
+  } else {
+    document.getElementById('billTitleInput').value = '';
+    document.getElementById('billContentInput').value = '';
+  }
+});
+
+targetPolicySelectEl?.addEventListener('change', applySelectedPolicyToForm);
+
 openProposeBtn.addEventListener('click', () => {
   if (!stateData.me) return startOneIdLogin();
+  proposeForm.reset();
+  billTypeSelectEl.value = 'new';
+  targetPolicyWrapEl.hidden = true;
   proposeModal.hidden = false;
 });
 closeProposeModalBtn.addEventListener('click', () => { proposeModal.hidden = true; });
 
 proposeForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+  const billType = billTypeSelectEl.value;
+  const targetPolicyId = billType === 'amend' ? Number(targetPolicySelectEl.value) : null;
   try {
     await api('/api/bills', {
       method: 'POST',
       body: {
+        billType,
+        targetPolicyId,
         serviceName: document.getElementById('billServiceSelect').value,
         title: document.getElementById('billTitleInput').value.trim(),
         content: document.getElementById('billContentInput').value.trim(),

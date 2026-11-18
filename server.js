@@ -97,6 +97,9 @@ async function initDb() {
       approved_by TEXT NOT NULL,
       enacted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS bill_type TEXT NOT NULL DEFAULT 'new';
+    ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS target_policy_id INT;
   `);
 
   const { rows: partyRows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM asm_parties');
@@ -111,17 +114,48 @@ async function initDb() {
     );
   }
 
+  const { rows: polRows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM oneid_operating_policies');
+  if (polRows[0].cnt === 0) {
+    const v1Content = [
+      '제1장 총칙',
+      '제1조(목적) 본 운영정책은 ONEID 통합 계정으로 연결된 모든 서비스(ATELIER J, PIGSTY, PULSE, DISPATCH, ONE BANK, NEXUS EXCHANGE, JARKET, NOVA, INKVOID, SONORA, FAKEPRESS, KEYWAR, AGORA 등)의 질서 유지와 이용자 권익 보호를 목적으로 한다.',
+      '제2조(정책의 제·개정) 모든 운영정책의 신설(제정) 및 수정(개정)은 AGORA 가상 국민의회 발의·표결을 거쳐 총괄관리자(의장)가 최종 승인·공포함으로써 통합 고객센터(HELPDESK)에 즉시 효력을 발생한다.',
+      '',
+      '제2장 계정 및 보안 (ONEID)',
+      '제3조(사칭 금지) 타인의 닉네임이나 운영진·총괄관리자를 사칭하여 혼란을 유발하는 행위를 금한다.',
+      '제4조(통합 제재 및 서비스별 제재) 서버 공격·악성 스크립트 유포 등 중대한 생태계 교란 시 ONEID 전체 이용 정지 처분을 내릴 수 있으며, 개별 사이트 규정 위반 시 해당 서비스에 한하여 이용을 제한한다.',
+      '',
+      '제3장 커뮤니티 · 미디어 (PIGSTY, PULSE, DISPATCH)',
+      '제5조(커뮤니티 검열 및 예외 구역) 일반 PIGSTY에서는 자동 검열봇이 작동하며, 제한구역(PIGSTY // DARK) 및 자유 키배 아레나(KEYWAR)에서는 금칙어 자동 검열을 적용하지 아니한다.',
+      '제6조(라이브 방송 및 메신저 질서) PULSE 스트리머(BJ) 및 매니저는 방송 방해 시청자에 대해 자체 채금·강퇴 권한을 가진다.',
+      '',
+      '제4장 가상 금융 · 경제 (ONE BANK, NEXUS EXCHANGE, JARKET)',
+      '제7조(가상 자산 및 정산 원칙) 모든 가상 자산의 현금 환전을 금하며, PULSE 방송 후원금은 수수료(0%) 없이 스트리머 계좌로 전액 즉시 정산한다. 비정상 취약점 악용 시 부당 이익 환수 및 계정을 동결한다.',
+      '',
+      '제5장 이의신청 및 구제 (HELPDESK)',
+      '제8조(소명권 보장 및 신속 심사) 정지 처분을 받은 이용자는 비로그인 상태에서도 HELPDESK 통합 고객센터를 통해 소명서를 제출할 권리를 가지며, 오탐이나 참작 사유 인정 시 즉시 정지를 해제한다.'
+    ].join('\n');
+
+    await pool.query(
+      `INSERT INTO oneid_operating_policies
+         (bill_id, bill_no, service_name, party_name, proposer_nickname, title, content, yes_votes, no_votes, approved_by)
+       VALUES
+         (NULL, '제2026-000호 (v1.0)', '전체 서비스', '의회 합동제정위', '창립의회', 'ATELIER J · ONEID 통합 운영정책 (v1.0)', $1, 300, 0, '총괄관리자')`,
+      [v1Content]
+    );
+  }
+
   const { rows: billRows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM asm_bills');
   if (billRows[0].cnt === 0) {
     await pool.query(
-      `INSERT INTO asm_bills (bill_no, service_name, title, content, proposer_id, proposer_name, party_name, party_color, status)
+      `INSERT INTO asm_bills (bill_no, service_name, title, content, proposer_id, proposer_name, party_name, party_color, status, bill_type)
        VALUES
          ('제2026-001호', '전체 서비스', '계정 정지 처분 시 사유 명시 및 고객센터 소명 심사 보장법',
           '제1조(목적) 모든 ONEID 연동 서비스에서 계정 이용 제한 조치 시 명확한 사유를 고지하고, 이용자가 통합 고객센터(HELPDESK)를 통해 소명서를 제출할 권리를 보장한다.\n제2조(신속 심사) 접수된 정지 소명 안건은 공정하게 검토하여 오탐으로 확인될 경우 즉시 정지를 해제한다.',
-          'system', '의회법제사법위', '시민질서당', '#10b981', 'voting'),
+          'system', '의회법제사법위', '시민질서당', '#10b981', 'voting', 'new'),
          ('제2026-002호', 'PULSE', '실시간 방송 사칭·악성 도배 방지 및 자율 매니저 권한 운영정책안',
           '제1조(방송 질서) 스트리머(BJ) 및 임명된 매니저는 방송 중 악성 도배나 사칭 이용자에 대해 채팅 금지 및 강퇴 조치를 시행할 수 있다.\n제2조(투명 후원) ONE BANK 연동 후원은 수수료 없이 전액 스트리머에게 정산한다.',
-          'system', '미디어소위', '자유혁신당', '#3b82f6', 'voting')`
+          'system', '미디어소위', '자유혁신당', '#3b82f6', 'voting', 'new')`
     );
   }
 }
@@ -283,15 +317,38 @@ app.get('/api/overview', async (req, res) => {
       });
     }
 
+    const { rows: policyRows } = await pool.query(`
+      SELECT * FROM oneid_operating_policies ORDER BY policy_id ASC
+    `);
+    const policies = policyRows.map((p) => ({
+      policyId: p.policy_id,
+      billId: p.bill_id,
+      billNo: p.bill_no,
+      serviceName: p.service_name,
+      partyName: p.party_name,
+      proposerNickname: p.proposer_nickname,
+      title: p.title,
+      content: p.content,
+      yesVotes: p.yes_votes,
+      noVotes: p.no_votes,
+      approvedBy: p.approved_by,
+      enactedAt: p.enacted_at,
+    }));
+    const policyMap = new Map(policies.map((p) => [p.policyId, p]));
+
     const bills = billRows.map((b) => {
       const bVotes = votesByBill.get(b.id) || [];
       const yesVotes = bVotes.filter((v) => v.choice === 'yes').length;
       const noVotes = bVotes.filter((v) => v.choice === 'no').length;
       const abstainVotes = bVotes.filter((v) => v.choice === 'abstain').length;
       const myVote = user ? bVotes.find((v) => v.user_id === user.id)?.choice || null : null;
+      const targetPolicy = b.target_policy_id ? policyMap.get(b.target_policy_id) || null : null;
       return {
         id: b.id,
         billNo: b.bill_no,
+        billType: b.bill_type || 'new',
+        targetPolicyId: b.target_policy_id || null,
+        targetPolicyTitle: targetPolicy ? targetPolicy.title : null,
         serviceName: b.service_name,
         title: b.title,
         content: b.content,
@@ -314,6 +371,7 @@ app.get('/api/overview', async (req, res) => {
     res.json({
       totalSeats: TOTAL_SEATS,
       parties,
+      policies,
       bills,
       me: user ? { ...user, membership: myMembership } : null,
     });
@@ -374,11 +432,16 @@ app.post('/api/bills', async (req, res) => {
   const user = await verifyOneIdUser(req);
   if (!user) return res.status(401).json({ error: '법안·운영정책을 발의하려면 ONEID 로그인이 필요합니다.' });
 
+  const billType = req.body?.billType === 'amend' ? 'amend' : 'new';
+  const targetPolicyId = billType === 'amend' && Number(req.body?.targetPolicyId) > 0 ? Number(req.body.targetPolicyId) : null;
   const serviceName = String(req.body?.serviceName || '전체 서비스').trim().slice(0, 40);
   const title = String(req.body?.title || '').trim().slice(0, 120);
-  const content = String(req.body?.content || '').trim().slice(0, 4000);
+  const content = String(req.body?.content || '').trim().slice(0, 8000);
   if (title.length < 3 || content.length < 5) {
     return res.status(400).json({ error: '법안 제목과 정책 본문을 입력해 주세요.' });
+  }
+  if (billType === 'amend' && !targetPolicyId) {
+    return res.status(400).json({ error: '개정할 기존 운영정책을 선택해 주세요.' });
   }
 
   try {
@@ -393,10 +456,10 @@ app.post('/api/bills', async (req, res) => {
     const billNo = `제2026-${String(seqRows[0].next_no).padStart(3, '0')}호`;
 
     const { rows } = await pool.query(
-      `INSERT INTO asm_bills (bill_no, service_name, title, content, proposer_id, proposer_name, party_name, party_color)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO asm_bills (bill_no, bill_type, target_policy_id, service_name, title, content, proposer_id, proposer_name, party_name, party_color)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [billNo, serviceName, title, content, user.id, user.nickname, partyName, partyColor]
+      [billNo, billType, targetPolicyId, serviceName, title, content, user.id, user.nickname, partyName, partyColor]
     );
     res.status(201).json({ ok: true, bill: rows[0] });
   } catch (err) {
@@ -460,7 +523,7 @@ app.post('/api/bills/:id/speech', async (req, res) => {
   }
 });
 
-// Admin Promulgation -> Automatically syncs to HELPDESK oneid_operating_policies
+// Admin Promulgation -> Automatically syncs (insert new or update amended) to HELPDESK oneid_operating_policies
 app.post('/api/bills/:id/approve', async (req, res) => {
   const user = await verifyOneIdUser(req);
   if (!user || !user.isAdmin) {
@@ -490,6 +553,43 @@ app.post('/api/bills/:id/approve', async (req, res) => {
       [user.nickname, billId]
     );
 
+    if (bill.bill_type === 'amend' && bill.target_policy_id) {
+      const { rowCount } = await pool.query(
+        `UPDATE oneid_operating_policies
+         SET bill_id = $1,
+             bill_no = $2,
+             service_name = $3,
+             party_name = $4,
+             proposer_nickname = $5,
+             title = $6,
+             content = $7,
+             yes_votes = $8,
+             no_votes = $9,
+             approved_by = $10,
+             enacted_at = NOW()
+         WHERE policy_id = $11`,
+        [
+          bill.id,
+          `${bill.bill_no} (개정)`,
+          bill.service_name,
+          bill.party_name,
+          bill.proposer_name,
+          bill.title,
+          bill.content,
+          yesVotes,
+          noVotes,
+          user.nickname,
+          bill.target_policy_id,
+        ]
+      );
+      if (rowCount > 0) {
+        return res.json({
+          ok: true,
+          message: '기존 운영정책 개정안이 최종 승인되어 통합 고객센터(HELPDESK) 정책 본문이 즉시 업데이트되었습니다!',
+        });
+      }
+    }
+
     await pool.query('DELETE FROM oneid_operating_policies WHERE bill_id = $1', [billId]);
     await pool.query(
       `INSERT INTO oneid_operating_policies
@@ -509,7 +609,7 @@ app.post('/api/bills/:id/approve', async (req, res) => {
       ]
     );
 
-    res.json({ ok: true, message: '운영정책이 최종 승인되어 통합 고객센터(HELPDESK)에 즉시 반영되었습니다!' });
+    res.json({ ok: true, message: '새 운영정책이 최종 승인되어 통합 고객센터(HELPDESK)에 즉시 공포·반영되었습니다!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

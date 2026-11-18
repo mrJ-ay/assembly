@@ -61,6 +61,21 @@
       </div>
     </section>
 
+    <!-- ENACTED POLICIES SECTION -->
+    <section class="card" id="enactedPoliciesCard">
+      <div class="card-head">
+        <div>
+          <span class="eyebrow">ACTIVE OPERATING POLICIES</span>
+          <h2>📜 현행 공포 운영정책 (고객센터 적용 중)</h2>
+        </div>
+        <a href="https://oneid-helpdesk.onrender.com/?tab=policies" target="_blank" rel="noopener" class="btn small ghost">
+          고객센터에서 확인 ↗
+        </a>
+      </div>
+      <p class="card-desc">현재 시행 중인 운영정책입니다. 우측 <strong>개정안 발의</strong>를 누르면 기존 조문을 불러와 수정 안건을 상정할 수 있습니다.</p>
+      <div id="activePolicyList" class="party-list" style="max-height:380px;"></div>
+    </section>
+
     <!-- BILLS & OPERATING POLICIES SECTION -->
     <section class="bills-section">
       <div class="bills-header">
@@ -76,7 +91,7 @@
             <button type="button" class="pill" data-filter="enacted">📜 공포됨 (고객센터 반영)</button>
             <button type="button" class="pill" data-filter="rejected">거부/폐기</button>
           </div>
-          <button type="button" id="openProposeBtn" class="btn gold">📜 새 운영정책 · 법안 발의</button>
+          <button type="button" id="openProposeBtn" class="btn gold">📜 새 제정 · 개정안 발의</button>
         </div>
       </div>
 
@@ -113,12 +128,23 @@
 
   <!-- PROPOSE BILL MODAL -->
   <div id="proposeModal" class="modal-backdrop" hidden>
-    <div class="modal-box">
+    <div class="modal-box" style="max-width:600px;">
       <div class="modal-head">
-        <h3>새 운영정책 · 법안 발의</h3>
+        <h3 id="proposeModalTitle">운영정책 제정 · 개정안 발의</h3>
         <button type="button" id="closeProposeModalBtn" class="icon-close">×</button>
       </div>
       <form id="proposeForm" class="modal-form">
+        <label>
+          <span>안건 구분</span>
+          <select id="billTypeSelect">
+            <option value="new">🆕 제정안 (새로운 운영정책 신설)</option>
+            <option value="amend">✏️ 개정안 (기존 현행 운영정책 수정)</option>
+          </select>
+        </label>
+        <label id="targetPolicyWrap" hidden>
+          <span>개정할 대상 운영정책 선택 (선택 시 기존 본문 자동 불러오기)</span>
+          <select id="targetPolicySelect"></select>
+        </label>
         <label>
           <span>적용 대상 서비스</span>
           <select id="billServiceSelect">
@@ -136,17 +162,17 @@
         </label>
         <label>
           <span>법안 · 운영정책 제목</span>
-          <input id="billTitleInput" type="text" maxlength="120" placeholder="예: 부당 정지 계정 24시간 내 소명 심사 의무화안" required />
+          <input id="billTitleInput" type="text" maxlength="120" placeholder="예: ATELIER J · ONEID 통합 운영정책 일부개정안" required />
         </label>
         <label>
-          <span>정책 조문 및 제안 사유</span>
-          <textarea id="billContentInput" rows="6" maxlength="4000" placeholder="제1조(목적) ...&#10;제2조(적용 기준) ..." required></textarea>
+          <span>정책 조문 전문 (개정안일 경우 기존 조문을 직접 수정하세요)</span>
+          <textarea id="billContentInput" rows="10" maxlength="8000" placeholder="제1조(목적) ...&#10;제2조(적용 기준) ..." required></textarea>
         </label>
         <button type="submit" class="btn gold full">본회의 안건 상정</button>
       </form>
     </div>
   </div>
 
-  <script type="module" src="/app.js?v=1"></script>
+  <script type="module" src="/app.js?v=2"></script>
 </body>
 </html>
