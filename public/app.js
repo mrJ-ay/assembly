@@ -33,7 +33,8 @@ const closePartyModalBtn = document.getElementById('closePartyModalBtn');
 const partyForm = document.getElementById('partyForm');
 
 const proposeModal = document.getElementById('proposeModal');
-const openProposeBtn = document.getElementById('openProposeBtn');
+const openNewBillBtn = document.getElementById('openNewBillBtn');
+const openAmendBillBtn = document.getElementById('openAmendBillBtn');
 const closeProposeModalBtn = document.getElementById('closeProposeModalBtn');
 const proposeForm = document.getElementById('proposeForm');
 
@@ -152,17 +153,32 @@ function renderAll() {
   renderBills(stateData.bills || []);
 }
 
-function openAmendModalForTarget(targetKey) {
-  if (!stateData.me) return startOneIdLogin();
+function setProposeMode(mode, targetKey = '') {
   const billTypeSelect = document.getElementById('billTypeSelect');
   const targetPolicyWrap = document.getElementById('targetPolicyWrap');
   const targetPolicySelect = document.getElementById('targetPolicySelect');
+  const isAmend = mode === 'amend';
 
-  populateTargetPolicyOptions();
-  billTypeSelect.value = 'amend';
-  targetPolicyWrap.hidden = false;
-  if (targetKey) targetPolicySelect.value = targetKey;
-  applySelectedPolicyToForm();
+  billTypeSelect.value = isAmend ? 'amend' : 'new';
+  targetPolicyWrap.hidden = !isAmend;
+  targetPolicyWrap.style.display = isAmend ? 'flex' : 'none';
+
+  if (isAmend) {
+    populateTargetPolicyOptions();
+    if (targetKey && Array.from(targetPolicySelect.options).some((o) => o.value === targetKey)) {
+      targetPolicySelect.value = targetKey;
+    }
+    applySelectedPolicyToForm();
+  } else {
+    document.getElementById('billTitleInput').value = '';
+    document.getElementById('billContentInput').value = '';
+  }
+}
+
+function openAmendModalForTarget(targetKey) {
+  if (!stateData.me) return startOneIdLogin();
+  proposeForm.reset();
+  setProposeMode('amend', targetKey);
   proposeModal.hidden = false;
 }
 
@@ -170,14 +186,17 @@ function populateTargetPolicyOptions() {
   const targetPolicySelect = document.getElementById('targetPolicySelect');
   const policies = stateData.policies || [];
   const bills = stateData.bills || [];
+  const enactedBillIds = new Set(policies.map((p) => Number(p.billId)).filter(Boolean));
   const policyOpts = policies.map(
     (p) =>
       `<option value="policy:${p.policyId}">[현행 운영정책 · ${escapeHtml(p.serviceName)}] ${escapeHtml(p.title)} (${escapeHtml(p.billNo)})</option>`
   );
-  const billOpts = bills.map(
-    (b) =>
-      `<option value="bill:${b.id}">[법안 ${escapeHtml(b.billNo)} · ${escapeHtml(b.serviceName)}] ${escapeHtml(b.title)}</option>`
-  );
+  const billOpts = bills
+    .filter((b) => !enactedBillIds.has(Number(b.id)))
+    .map(
+      (b) =>
+        `<option value="bill:${b.id}">[법안 ${escapeHtml(b.billNo)} · ${escapeHtml(b.serviceName)}] ${escapeHtml(b.title)}</option>`
+    );
   targetPolicySelect.innerHTML = [...policyOpts, ...billOpts].join('');
 }
 
@@ -560,26 +579,25 @@ const targetPolicyWrapEl = document.getElementById('targetPolicyWrap');
 const targetPolicySelectEl = document.getElementById('targetPolicySelect');
 
 billTypeSelectEl?.addEventListener('change', () => {
-  const isAmend = billTypeSelectEl.value === 'amend';
-  targetPolicyWrapEl.hidden = !isAmend;
-  if (isAmend) {
-    populateTargetPolicyOptions();
-    applySelectedPolicyToForm();
-  } else {
-    document.getElementById('billTitleInput').value = '';
-    document.getElementById('billContentInput').value = '';
-  }
+  setProposeMode(billTypeSelectEl.value);
 });
 
 targetPolicySelectEl?.addEventListener('change', applySelectedPolicyToForm);
 
-openProposeBtn.addEventListener('click', () => {
+openNewBillBtn?.addEventListener('click', () => {
   if (!stateData.me) return startOneIdLogin();
   proposeForm.reset();
-  billTypeSelectEl.value = 'new';
-  targetPolicyWrapEl.hidden = true;
+  setProposeMode('new');
   proposeModal.hidden = false;
 });
+
+openAmendBillBtn?.addEventListener('click', () => {
+  if (!stateData.me) return startOneIdLogin();
+  proposeForm.reset();
+  setProposeMode('amend');
+  proposeModal.hidden = false;
+});
+
 closeProposeModalBtn.addEventListener('click', () => { proposeModal.hidden = true; });
 
 proposeForm.addEventListener('submit', async (e) => {

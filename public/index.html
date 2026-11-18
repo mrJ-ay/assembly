@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AGORA — 가상 국민의회 · 운영정책 입법부</title>
-  <link rel="stylesheet" href="/style.css?v=1" />
+  <link rel="stylesheet" href="/style.css?v=4" />
 </head>
 <body>
   <header class="topbar">
@@ -91,7 +91,8 @@
             <button type="button" class="pill" data-filter="enacted">📜 공포됨 (고객센터 반영)</button>
             <button type="button" class="pill" data-filter="rejected">거부/폐기</button>
           </div>
-          <button type="button" id="openProposeBtn" class="btn gold">📜 새 제정 · 개정안 발의</button>
+          <button type="button" id="openNewBillBtn" class="btn gold">🆕 새 제정안 발의</button>
+          <button type="button" id="openAmendBillBtn" class="btn">✏️ 기존 법안 개정안 발의</button>
         </div>
       </div>
 
@@ -138,11 +139,11 @@
           <span>안건 구분</span>
           <select id="billTypeSelect">
             <option value="new">🆕 제정안 (새로운 운영정책 신설)</option>
-            <option value="amend">✏️ 개정안 (기존 현행 운영정책 수정)</option>
+            <option value="amend">✏️ 개정안 (기존 현행 운영정책 · 법안 수정)</option>
           </select>
         </label>
-        <label id="targetPolicyWrap" hidden>
-          <span>개정할 대상 운영정책 선택 (선택 시 기존 본문 자동 불러오기)</span>
+        <label id="targetPolicyWrap" hidden style="display:none;">
+          <span>개정할 대상 법안 · 운영정책 선택 (선택 시 기존 본문 자동 불러오기)</span>
           <select id="targetPolicySelect"></select>
         </label>
         <label>
@@ -173,6 +174,6 @@
     </div>
   </div>
 
-  <script type="module" src="/app.js?v=3"></script>
+  <script type="module" src="/app.js?v=4"></script>
 </body>
 </html>
