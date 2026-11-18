@@ -152,50 +152,51 @@ function renderAll() {
   renderBills(stateData.bills || []);
 }
 
-function openAmendModalForPolicy(policyId) {
+function openAmendModalForTarget(targetKey) {
   if (!stateData.me) return startOneIdLogin();
-  const policies = stateData.policies || [];
-  const p = policies.find((item) => item.policyId === Number(policyId)) || policies[0];
-  if (!p) {
-    alert('개정할 현행 운영정책이 없습니다.');
-    return;
-  }
-
   const billTypeSelect = document.getElementById('billTypeSelect');
   const targetPolicyWrap = document.getElementById('targetPolicyWrap');
   const targetPolicySelect = document.getElementById('targetPolicySelect');
-  const billServiceSelect = document.getElementById('billServiceSelect');
-  const billTitleInput = document.getElementById('billTitleInput');
-  const billContentInput = document.getElementById('billContentInput');
 
   populateTargetPolicyOptions();
   billTypeSelect.value = 'amend';
   targetPolicyWrap.hidden = false;
-  targetPolicySelect.value = String(p.policyId);
-  billServiceSelect.value = p.serviceName || '전체 서비스';
-  billTitleInput.value = p.title.includes('개정') ? p.title : `${p.title} 일부개정안`;
-  billContentInput.value = p.content || '';
+  if (targetKey) targetPolicySelect.value = targetKey;
+  applySelectedPolicyToForm();
   proposeModal.hidden = false;
 }
 
 function populateTargetPolicyOptions() {
   const targetPolicySelect = document.getElementById('targetPolicySelect');
   const policies = stateData.policies || [];
-  targetPolicySelect.innerHTML = policies
-    .map(
-      (p) =>
-        `<option value="${p.policyId}">[${escapeHtml(p.serviceName)}] ${escapeHtml(p.title)} (${escapeHtml(p.billNo)})</option>`
-    )
-    .join('');
+  const bills = stateData.bills || [];
+  const policyOpts = policies.map(
+    (p) =>
+      `<option value="policy:${p.policyId}">[현행 운영정책 · ${escapeHtml(p.serviceName)}] ${escapeHtml(p.title)} (${escapeHtml(p.billNo)})</option>`
+  );
+  const billOpts = bills.map(
+    (b) =>
+      `<option value="bill:${b.id}">[법안 ${escapeHtml(b.billNo)} · ${escapeHtml(b.serviceName)}] ${escapeHtml(b.title)}</option>`
+  );
+  targetPolicySelect.innerHTML = [...policyOpts, ...billOpts].join('');
 }
 
 function applySelectedPolicyToForm() {
-  const targetPolicySelect = document.getElementById('targetPolicySelect');
-  const p = (stateData.policies || []).find((item) => item.policyId === Number(targetPolicySelect.value));
-  if (!p) return;
-  document.getElementById('billServiceSelect').value = p.serviceName || '전체 서비스';
-  document.getElementById('billTitleInput').value = p.title.includes('개정') ? p.title : `${p.title} 일부개정안`;
-  document.getElementById('billContentInput').value = p.content || '';
+  const val = document.getElementById('targetPolicySelect').value || '';
+  const [kind, rawId] = val.split(':');
+  const id = Number(rawId);
+  let item = null;
+  if (kind === 'policy') {
+    item = (stateData.policies || []).find((p) => p.policyId === id);
+  } else if (kind === 'bill') {
+    item = (stateData.bills || []).find((b) => b.id === id);
+  }
+  if (!item) return;
+  document.getElementById('billServiceSelect').value = item.serviceName || '전체 서비스';
+  document.getElementById('billTitleInput').value = item.title.includes('개정')
+    ? item.title
+    : `${item.title} 일부개정안`;
+  document.getElementById('billContentInput').value = item.content || '';
 }
 
 function renderActivePolicies(policies) {
@@ -215,7 +216,7 @@ function renderActivePolicies(policies) {
             <span class="badge" style="color:#fbbf24;">${escapeHtml(p.serviceName)}</span>
             <strong style="margin-left:6px;font-size:15px;">${escapeHtml(p.title)}</strong>
           </div>
-          <button type="button" class="btn small gold" data-amend-policy="${p.policyId}">✏️ 이 정책 개정안 발의</button>
+          <button type="button" class="btn small gold" data-amend-target="policy:${p.policyId}">✏️ 이 정책 개정안 발의</button>
         </div>
         <details style="width:100%;margin-top:6px;">
           <summary style="cursor:pointer;font-size:12px;color:#93c5fd;">정책 조문 전문 펼쳐보기</summary>
@@ -226,8 +227,8 @@ function renderActivePolicies(policies) {
     )
     .join('');
 
-  box.querySelectorAll('[data-amend-policy]').forEach((btn) => {
-    btn.addEventListener('click', () => openAmendModalForPolicy(btn.dataset.amendPolicy));
+  box.querySelectorAll('[data-amend-target]').forEach((btn) => {
+    btn.addEventListener('click', () => openAmendModalForTarget(btn.dataset.amendTarget));
   });
 }
 
@@ -406,6 +407,9 @@ function renderBills(bills) {
                 <button type="button" class="btn small ${b.myVote === 'abstain' ? 'vote-btn-active' : ''}" data-vote-bill="${b.id}" data-choice="abstain">
                   ⚪ 기권 (${b.abstainVotes})
                 </button>
+                <button type="button" class="btn small" data-amend-target="bill:${b.id}">
+                  ✏️ 이 법안 개정·수정안 발의
+                </button>
               </div>
               ${adminControls}
             </div>
@@ -429,6 +433,10 @@ function renderBills(bills) {
       `;
     })
     .join('');
+
+  billList.querySelectorAll('[data-amend-target]').forEach((btn) => {
+    btn.addEventListener('click', () => openAmendModalForTarget(btn.dataset.amendTarget));
+  });
 
   billList.querySelectorAll('[data-vote-bill]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -577,13 +585,20 @@ closeProposeModalBtn.addEventListener('click', () => { proposeModal.hidden = tru
 proposeForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const billType = billTypeSelectEl.value;
-  const targetPolicyId = billType === 'amend' ? Number(targetPolicySelectEl.value) : null;
+  let targetPolicyId = null;
+  let targetBillId = null;
+  if (billType === 'amend') {
+    const [kind, rawId] = (targetPolicySelectEl.value || '').split(':');
+    if (kind === 'policy') targetPolicyId = Number(rawId);
+    if (kind === 'bill') targetBillId = Number(rawId);
+  }
   try {
     await api('/api/bills', {
       method: 'POST',
       body: {
         billType,
         targetPolicyId,
+        targetBillId,
         serviceName: document.getElementById('billServiceSelect').value,
         title: document.getElementById('billTitleInput').value.trim(),
         content: document.getElementById('billContentInput').value.trim(),

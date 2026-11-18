@@ -100,6 +100,7 @@ async function initDb() {
 
     ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS bill_type TEXT NOT NULL DEFAULT 'new';
     ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS target_policy_id INT;
+    ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS target_bill_id INT;
   `);
 
   const { rows: partyRows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM asm_parties');
@@ -335,6 +336,7 @@ app.get('/api/overview', async (req, res) => {
       enactedAt: p.enacted_at,
     }));
     const policyMap = new Map(policies.map((p) => [p.policyId, p]));
+    const billMap = new Map(billRows.map((b) => [b.id, b]));
 
     const bills = billRows.map((b) => {
       const bVotes = votesByBill.get(b.id) || [];
@@ -343,12 +345,19 @@ app.get('/api/overview', async (req, res) => {
       const abstainVotes = bVotes.filter((v) => v.choice === 'abstain').length;
       const myVote = user ? bVotes.find((v) => v.user_id === user.id)?.choice || null : null;
       const targetPolicy = b.target_policy_id ? policyMap.get(b.target_policy_id) || null : null;
+      const targetBill = b.target_bill_id ? billMap.get(b.target_bill_id) || null : null;
+      const targetTitle = targetPolicy
+        ? targetPolicy.title
+        : targetBill
+        ? `${targetBill.bill_no} ${targetBill.title}`
+        : null;
       return {
         id: b.id,
         billNo: b.bill_no,
         billType: b.bill_type || 'new',
         targetPolicyId: b.target_policy_id || null,
-        targetPolicyTitle: targetPolicy ? targetPolicy.title : null,
+        targetBillId: b.target_bill_id || null,
+        targetPolicyTitle: targetTitle,
         serviceName: b.service_name,
         title: b.title,
         content: b.content,
@@ -434,14 +443,15 @@ app.post('/api/bills', async (req, res) => {
 
   const billType = req.body?.billType === 'amend' ? 'amend' : 'new';
   const targetPolicyId = billType === 'amend' && Number(req.body?.targetPolicyId) > 0 ? Number(req.body.targetPolicyId) : null;
+  const targetBillId = billType === 'amend' && Number(req.body?.targetBillId) > 0 ? Number(req.body.targetBillId) : null;
   const serviceName = String(req.body?.serviceName || '전체 서비스').trim().slice(0, 40);
   const title = String(req.body?.title || '').trim().slice(0, 120);
   const content = String(req.body?.content || '').trim().slice(0, 8000);
   if (title.length < 3 || content.length < 5) {
     return res.status(400).json({ error: '법안 제목과 정책 본문을 입력해 주세요.' });
   }
-  if (billType === 'amend' && !targetPolicyId) {
-    return res.status(400).json({ error: '개정할 기존 운영정책을 선택해 주세요.' });
+  if (billType === 'amend' && !targetPolicyId && !targetBillId) {
+    return res.status(400).json({ error: '개정할 대상 법안 또는 운영정책을 선택해 주세요.' });
   }
 
   try {
@@ -456,10 +466,10 @@ app.post('/api/bills', async (req, res) => {
     const billNo = `제2026-${String(seqRows[0].next_no).padStart(3, '0')}호`;
 
     const { rows } = await pool.query(
-      `INSERT INTO asm_bills (bill_no, bill_type, target_policy_id, service_name, title, content, proposer_id, proposer_name, party_name, party_color)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO asm_bills (bill_no, bill_type, target_policy_id, target_bill_id, service_name, title, content, proposer_id, proposer_name, party_name, party_color)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [billNo, billType, targetPolicyId, serviceName, title, content, user.id, user.nickname, partyName, partyColor]
+      [billNo, billType, targetPolicyId, targetBillId, serviceName, title, content, user.id, user.nickname, partyName, partyColor]
     );
     res.status(201).json({ ok: true, bill: rows[0] });
   } catch (err) {
@@ -553,7 +563,15 @@ app.post('/api/bills/:id/approve', async (req, res) => {
       [user.nickname, billId]
     );
 
-    if (bill.bill_type === 'amend' && bill.target_policy_id) {
+    if (bill.bill_type === 'amend' && (bill.target_policy_id || bill.target_bill_id)) {
+      if (bill.target_bill_id) {
+        await pool.query(
+          `UPDATE asm_bills SET title = $1, content = $2, service_name = $3 WHERE id = $4`,
+          [bill.title, bill.content, bill.service_name, bill.target_bill_id]
+        );
+      }
+      const whereClause = bill.target_policy_id ? 'WHERE policy_id = $11' : 'WHERE bill_id = $11';
+      const targetVal = bill.target_policy_id || bill.target_bill_id;
       const { rowCount } = await pool.query(
         `UPDATE oneid_operating_policies
          SET bill_id = $1,
@@ -567,7 +585,7 @@ app.post('/api/bills/:id/approve', async (req, res) => {
              no_votes = $9,
              approved_by = $10,
              enacted_at = NOW()
-         WHERE policy_id = $11`,
+         ${whereClause}`,
         [
           bill.id,
           `${bill.bill_no} (개정)`,
@@ -579,13 +597,13 @@ app.post('/api/bills/:id/approve', async (req, res) => {
           yesVotes,
           noVotes,
           user.nickname,
-          bill.target_policy_id,
+          targetVal,
         ]
       );
       if (rowCount > 0) {
         return res.json({
           ok: true,
-          message: '기존 운영정책 개정안이 최종 승인되어 통합 고객센터(HELPDESK) 정책 본문이 즉시 업데이트되었습니다!',
+          message: '개정안이 최종 승인되어 기존 법안 및 통합 고객센터(HELPDESK) 운영정책이 즉시 업데이트되었습니다!',
         });
       }
     }
