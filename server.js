@@ -101,6 +101,12 @@ async function initDb() {
     ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS bill_type TEXT NOT NULL DEFAULT 'new';
     ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS target_policy_id INT;
     ALTER TABLE asm_bills ADD COLUMN IF NOT EXISTS target_bill_id INT;
+
+    DELETE FROM asm_bills
+    WHERE status = 'enacted'
+      AND id NOT IN (
+        SELECT bill_id FROM oneid_operating_policies WHERE bill_id IS NOT NULL
+      );
   `);
 
   const { rows: partyRows } = await pool.query('SELECT COUNT(*)::int AS cnt FROM asm_parties');
@@ -564,12 +570,21 @@ app.post('/api/bills/:id/approve', async (req, res) => {
     );
 
     if (bill.bill_type === 'amend' && (bill.target_policy_id || bill.target_bill_id)) {
-      if (bill.target_bill_id) {
-        await pool.query(
-          `UPDATE asm_bills SET title = $1, content = $2, service_name = $3 WHERE id = $4`,
-          [bill.title, bill.content, bill.service_name, bill.target_bill_id]
+      let oldBillId = bill.target_bill_id ? Number(bill.target_bill_id) : null;
+      if (!oldBillId && bill.target_policy_id) {
+        const { rows: polRows } = await pool.query(
+          'SELECT bill_id FROM oneid_operating_policies WHERE policy_id = $1',
+          [bill.target_policy_id]
         );
+        if (polRows[0]?.bill_id) {
+          oldBillId = Number(polRows[0].bill_id);
+        }
       }
+
+      if (oldBillId && oldBillId !== bill.id) {
+        await pool.query('DELETE FROM asm_bills WHERE id = $1', [oldBillId]);
+      }
+
       const whereClause = bill.target_policy_id ? 'WHERE policy_id = $11' : 'WHERE bill_id = $11';
       const targetVal = bill.target_policy_id || bill.target_bill_id;
       const { rowCount } = await pool.query(
@@ -603,7 +618,7 @@ app.post('/api/bills/:id/approve', async (req, res) => {
       if (rowCount > 0) {
         return res.json({
           ok: true,
-          message: '개정안이 최종 승인되어 기존 법안 및 통합 고객센터(HELPDESK) 운영정책이 즉시 업데이트되었습니다!',
+          message: '개정안이 최종 승인되어 기존 개정 대상 법안은 대체(삭제)되고 통합 고객센터(HELPDESK) 운영정책이 업데이트되었습니다!',
         });
       }
     }
