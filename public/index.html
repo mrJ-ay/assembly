@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AGORA — 가상 국민의회 · 운영정책 입법부</title>
+  <link rel="stylesheet" href="/style.css?v=1" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="crest">🏛️</span>
+        <div>
+          <h1>AGORA</h1>
+          <span class="sub">가상 국민의회 · 통합 운영정책 입법부</span>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <a href="https://oneid-helpdesk.onrender.com/?tab=policies" target="_blank" rel="noopener" class="btn ghost">
+          📜 고객센터 운영정책 보기 ↗
+        </a>
+        <div id="myPartyBadge" class="party-chip" hidden>무소속</div>
+        <button type="button" id="oneidBtn" class="btn gold">ONEID 로그인</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- HEMICYCLE & PARTIES SECTION -->
+    <section class="chamber-grid">
+      <div class="card hemicycle-card">
+        <div class="card-head">
+          <div>
+            <span class="eyebrow">PARLIAMENT HEMICYCLE</span>
+            <h2>본회의장 300석 의석 분포도</h2>
+          </div>
+          <span id="rulingPartyBadge" class="ruling-badge">원내 제1당 집계 중</span>
+        </div>
+        <div class="hemicycle-wrap">
+          <svg id="seatChart" viewBox="0 0 500 265" class="seat-svg" aria-label="300석 의석 분포도"></svg>
+          <div class="hemicycle-center">
+            <strong>300</strong>
+            <span>총 의석</span>
+          </div>
+        </div>
+        <div id="seatLegend" class="seat-legend"></div>
+      </div>
+
+      <div class="card parties-card">
+        <div class="card-head">
+          <div>
+            <span class="eyebrow">POLITICAL PARTIES</span>
+            <h2>원내 정당 및 입당</h2>
+          </div>
+          <button type="button" id="openCreatePartyBtn" class="btn small gold">+ 정당 창당</button>
+        </div>
+        <p class="card-desc">정당에 입당하면 당원 수 비율에 따라 본회의장 300석 의석이 실시간 배분됩니다.</p>
+        <div id="partyList" class="party-list"></div>
+      </div>
+    </section>
+
+    <!-- BILLS & OPERATING POLICIES SECTION -->
+    <section class="bills-section">
+      <div class="bills-header">
+        <div>
+          <span class="eyebrow">LEGISLATION &amp; OPERATING POLICIES</span>
+          <h2>본회의 상정 법안 · 운영정책 안건</h2>
+          <p>가결된 안건을 총괄관리자(의장)가 최종 승인하면 <strong>통합 고객센터(HELPDESK)</strong> 공식 운영정책으로 즉시 공포·반영됩니다.</p>
+        </div>
+        <div class="bills-actions">
+          <div class="filter-pills" id="statusFilterPills">
+            <button type="button" class="pill active" data-filter="all">전체 안건</button>
+            <button type="button" class="pill" data-filter="voting">표결 중</button>
+            <button type="button" class="pill" data-filter="enacted">📜 공포됨 (고객센터 반영)</button>
+            <button type="button" class="pill" data-filter="rejected">거부/폐기</button>
+          </div>
+          <button type="button" id="openProposeBtn" class="btn gold">📜 새 운영정책 · 법안 발의</button>
+        </div>
+      </div>
+
+      <div id="billList" class="bill-list">
+        <div class="empty-box">본회의 안건을 불러오는 중...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- CREATE PARTY MODAL -->
+  <div id="partyModal" class="modal-backdrop" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>새 정당 창당</h3>
+        <button type="button" id="closePartyModalBtn" class="icon-close">×</button>
+      </div>
+      <form id="partyForm" class="modal-form">
+        <label>
+          <span>정당명 (2~24자)</span>
+          <input id="partyNameInput" type="text" maxlength="24" placeholder="예: 디지털자유당" required />
+        </label>
+        <label>
+          <span>정당 강령 / 슬로건</span>
+          <input id="partySloganInput" type="text" maxlength="80" placeholder="예: 이용자 권익과 무검열 창작 자유 수호" required />
+        </label>
+        <label>
+          <span>정당 상징 색상</span>
+          <input id="partyColorInput" type="color" value="#3b82f6" />
+        </label>
+        <button type="submit" class="btn gold full">창당 및 대표 취임</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROPOSE BILL MODAL -->
+  <div id="proposeModal" class="modal-backdrop" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>새 운영정책 · 법안 발의</h3>
+        <button type="button" id="closeProposeModalBtn" class="icon-close">×</button>
+      </div>
+      <form id="proposeForm" class="modal-form">
+        <label>
+          <span>적용 대상 서비스</span>
+          <select id="billServiceSelect">
+            <option value="전체 서비스">전체 서비스 (통합 운영정책)</option>
+            <option value="ONEID">ONEID (통합 계정)</option>
+            <option value="PIGSTY">PIGSTY (커뮤니티)</option>
+            <option value="PULSE">PULSE (라이브 방송)</option>
+            <option value="DISPATCH">DISPATCH (메신저)</option>
+            <option value="KEYWAR">KEYWAR (1:1 키배)</option>
+            <option value="FAKEPRESS">FAKEPRESS (신문 조판)</option>
+            <option value="ONE BANK">ONE BANK (가상 뱅킹)</option>
+            <option value="NEXUS EXCHANGE">NEXUS EXCHANGE (증권거래소)</option>
+            <option value="JARKET">JARKET (중고 마켓)</option>
+          </select>
+        </label>
+        <label>
+          <span>법안 · 운영정책 제목</span>
+          <input id="billTitleInput" type="text" maxlength="120" placeholder="예: 부당 정지 계정 24시간 내 소명 심사 의무화안" required />
+        </label>
+        <label>
+          <span>정책 조문 및 제안 사유</span>
+          <textarea id="billContentInput" rows="6" maxlength="4000" placeholder="제1조(목적) ...&#10;제2조(적용 기준) ..." required></textarea>
+        </label>
+        <button type="submit" class="btn gold full">본회의 안건 상정</button>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/app.js?v=1"></script>
+</body>
+</html>
