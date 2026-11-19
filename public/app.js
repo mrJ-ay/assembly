@@ -316,6 +316,7 @@ function renderHemicycle(parties) {
 
 function renderParties(parties) {
   const myPartyId = stateData.me?.membership?.partyId || null;
+  const isAdmin = Boolean(stateData.me?.isAdmin);
   partyList.innerHTML = parties
     .map((p) => {
       const isMine = myPartyId === p.id;
@@ -326,11 +327,16 @@ function renderParties(parties) {
             <p>${escapeHtml(p.slogan)}</p>
             <div class="party-meta">대표: ${escapeHtml(p.leaderName)} · 당원 ${p.memberCount}명</div>
           </div>
-          <div>
+          <div style="display:flex;gap:6px;align-items:center;">
             ${
               isMine
                 ? `<span class="badge">소속 정당</span>`
                 : `<button type="button" class="btn small" data-join-party="${p.id}">입당하기</button>`
+            }
+            ${
+              isAdmin
+                ? `<button type="button" class="btn small danger" data-delete-party="${p.id}" data-party-name="${escapeHtml(p.name)}">🗑️ 당 해산</button>`
+                : ''
             }
           </div>
         </div>
@@ -343,6 +349,19 @@ function renderParties(parties) {
       if (!stateData.me) return startOneIdLogin();
       try {
         await api(`/api/parties/${btn.dataset.joinParty}/join`, { method: 'POST' });
+        await loadOverview();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  partyList.querySelectorAll('[data-delete-party]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const partyName = btn.dataset.partyName || '해당 정당';
+      if (!confirm(`[${partyName}] 정당을 강제 해산(삭제)하시겠습니까? 소속 당원은 무소속으로 전환됩니다.`)) return;
+      try {
+        await api(`/api/parties/${btn.dataset.deleteParty}`, { method: 'DELETE' });
         await loadOverview();
       } catch (err) {
         alert(err.message);

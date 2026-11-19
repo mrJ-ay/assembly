@@ -443,6 +443,22 @@ app.post('/api/parties/:id/join', async (req, res) => {
   }
 });
 
+app.delete('/api/parties/:id', async (req, res) => {
+  const user = await verifyOneIdUser(req);
+  if (!user || !user.isAdmin) {
+    return res.status(403).json({ error: '총괄관리자(의장)만 정당을 해산(삭제)할 수 있습니다.' });
+  }
+
+  const partyId = Number(req.params.id);
+  try {
+    await pool.query('UPDATE asm_members SET party_id = NULL WHERE party_id = $1', [partyId]);
+    await pool.query('DELETE FROM asm_parties WHERE id = $1', [partyId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/bills', async (req, res) => {
   const user = await verifyOneIdUser(req);
   if (!user) return res.status(401).json({ error: '법안·운영정책을 발의하려면 ONEID 로그인이 필요합니다.' });
